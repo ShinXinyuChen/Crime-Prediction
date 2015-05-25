@@ -1,0 +1,152 @@
+library(maptools)
+library(plyr)
+library(ggplot2)
+library(car)
+library(MASS)
+library(doParallel)
+source("twitterUtil.r")
+
+####################################
+## Twitter data prerprocessing #####
+####################################
+
+# build the link to my PostgreSQL database
+drv <- dbDriver("PostgreSQL")
+con <- dbConnect(drv, host = 'localhost', port='5432', 
+                 dbname = 'postgis_tweet',user = 'postgres', 
+                 password='cxy5180112')
+
+# draw query from PostgresSQL database
+# get tweets from "2014-01-01 00:00:00" to "2014-01-31 11:59:59"
+Jan.2014 <- tweet.qry("2014-01-01 00:00:00", "2014-01-31 11:59:59")
+
+# read chicago boundary
+city.boundary = read.shapefile("City_20Boundary/City_Boundary", "poly", "+init=epsg:3435", "+init=epsg:26971")
+
+# set up grid (neighborhood) for concatenating tweets 
+bb <- bbox(city.boundary) # bbox of city boundary
+cs <- c(1000, 1000)  # cell size 1000m *1000m
+cc <- bb[, 1] + (cs/2)  # cell offset
+cd <- ceiling(diff(t(bb))/cs)  # number of cells per direction
+grid <- GridTopology(cellcentre.offset=cc, cellsize=cs, cells.dim=cd) # create a grib topology
+
+# convery grid topology to spatial data-frame 
+sp_grid <- SpatialGridDataFrame(grid,
+                                data=data.frame(id=1:prod(cd)),
+                                proj4string=CRS(proj4string(city.boundary)))
+#str(sp_grid)
+#summary(sp_grid)
+#plot(city.boundary)
+#plot(sp_grid, add =TRUE)
+
+# convert cy coordinate of tweets as spatial points
+Jan.2014.xy <- Jan.2014[8:9]
+coordinates(Jan.2014.xy) <- ~ st_x+st_y
+proj4string(Jan.2014.xy) <- proj4string(city.boundary)
+
+# assign tweets to each grid (neighborhood)
+Jan.tweet.grid <- over(Jan.2014.xy, sp_grid)
+names(Jan.tweet.grid) <- "grid_id"
+Jan.2014.grid <- cbind(Jan.2014, Jan.tweet.grid)
+
+# convert date type
+Jan.2014.grid$dates <- as.POSIXlt(Jan.2014.grid$created_at)
+Jan.2014.grid$mday <- Jan.2014.grid$dates[[4]]
+Jan.2014.grid <- Jan.2014.grid[-11]
+
+#names(Jan.test.grid$created_at)
+#class(as.POSIXlt(Jan.test.grid$created_at[1:5]))
+
+# set up multi-core
+nodes <- detectCores()
+cl <- makeCluster(nodes)
+registerDoParallel(cl)
+
+# concatenate tweets with same grid_id and date togather
+
+system.time(
+  Jan.2014.paste <- ddply(Jan.2014.grid, .(mday, grid_id), .fun = summarize,
+                        text_p=paste(text, collapse=""))
+)
+str(Jan.2014.paste)
+# clean-up twitter data using twitter.clean function 
+Jan.2014.paste.c <- twitter.clean(Jan.2014.paste, Jan.2014.paste$text_p)
+head(Jan.2014.paste.c)
+save("Jan.2014.paste.c", file = "Jan_2014_paste_c.Rdata")
+
+###################################
+### calculate snetiment score #####
+###################################
+
+
+Jan.2014.pol <- NULL
+#options(warn=0, error = recover)
+load("POLKEY.RData")
+system.time(
+  Jan.2014.pol<- polarity(Jan.2014.paste.c$text1, grouping.var = NULL, polarity.frame = POLKEY, 
+                          constrain = TRUE, negators = qdapDictionaries::negation.words,
+                          amplifiers = qdapDictionaries::amplification.words, deamplifiers = qdapDictionaries::deamplification.words, 
+                          question.weight = 0, amplifier.weight = .3, n.before = 4, n.after = 2, rm.incomplete = FALSE, digits = 3)
+)
+
+#    user  system elapsed 
+# 5777.63    1.81 5841.16
+
+save("Jan.2014.pol",file = "Jan_2014_pol_1000m.Rdata")
+load("Jan_2014_pol_1000m.Rdata")
+#Jan.2013.paste.c$text1[1]
+
+
+# calculate mean from raw score
+Jan.2014.pol$mean<- mean(Jan.2014.pol$all$polarity)
+#Jan.2014.pol$all$polarity[1:100]
+
+#########################################
+### Visualize Sentiment Score ###########
+#########################################
+
+# center the data by subtracting $sum from $mean
+Jan.2014.pol$all$centered <- Jan.2014.pol$all$polarity - Jan.2014.pol$mean
+
+#plot sentiment score without centering
+qplot(Jan.2014.pol$all$polarity, main = "Sentiment Histogram", xlab = "Score", ylab = "Frequency", binwidth = 0.015)
+
+# plot centered sentiment score
+qplot(Jan.2014.pol$all$centered, main = "Centered Sentiment Histogram", xlab = "Score", ylab = "Frequency", binwidth = 0.015)
+
+# insert day of month and grib id into large polarity 
+Jan.2014.pol$all$mday<- Jan.2014.paste.c$mday + 1 #shift 1 day period for prediction
+Jan.2014.pol$all$grid_id<- Jan.2014.paste.c$grid_id
+
+# boxplot of sentiment score for January
+ggplot(Jan.2014.pol$all, aes(x = Jan.2014.pol$all$mday, y = Jan.2014.pol$all$centered, 
+                                           group = Jan.2014.pol$all$mday)) + geom_boxplot(aes(fill = "grey80"), outlier.colour = "black",
+                                                                                          outlier.shape = 16, outlier.size = 2) + guides(fill = FALSE)
+
+# create data.frame which contains month day, polarity and grid id
+#str(Jan.2014.pol)
+Jan.2014.pol.data <- data.frame()
+Jan.2014.pol.data <- data.frame(Jan.2014.pol$all$mday, Jan.2014.pol$all$grid_id, Jan.2014.pol$all$polarity)
+names(Jan.2014.pol.data) <- c("mday", "grid_id", "polarity")
+
+# inset missing row
+# str(Jan.2014.pol.data$grid_id)
+vals <- expand.grid(mday = 2:31,grid_id = 1:max(Jan.2014.pol.data$grid_id, na.rm = TRUE))
+#head(vals)
+Jan.2014.pol.data.m <- merge(vals, Jan.2014.pol.data, all.x =TRUE)
+
+# impute 0 to those missing polarity
+Jan.2014.pol.data.m[is.na(Jan.2014.pol.data.m$polarity),"polarity"] <- 0
+
+# calculate trend index for all grid area
+Jan.2014.pol.trend <- data.frame()
+system.time(
+  for (i in 1:max(Jan.2014.pol.data$grid_id, na.rm = TRUE)){
+    sub <- subset(Jan.2014.pol.data.m, grid_id == i)
+    sub$trend_3 <- trend.idx(sub$polarity,3,0.1)
+    Jan.2014.pol.trend <- rbind(Jan.2014.pol.trend,sub)
+  }
+)
+
+# str(Jan.2014.pol.trend)
+# summary(Jan.2014.pol.trend)
