@@ -150,3 +150,30 @@ system.time(
 
 # str(Jan.2014.pol.trend)
 # summary(Jan.2014.pol.trend)
+
+sub.587 <- subset(Jan.2014.pol.6h$all, grid_id == 587)[,c(3,7)]
+
+# bb.scatter.587
+
+bb.scatter.587 <- ggplot(sub.587, aes(x = sub.587$sixhr_n, y = sub.587$polarity))
+bb.scatter.587 <- bb.scatter.587 + geom_point() + geom_line() + ylim(-1, 1)
+bb.scatter.587 <- bb.scatter.587 + xlab("Period") + ylab("Sentiment") + ggtitle("Neighborhood 587")
+bb.scatter.587
+
+str(Jan.2014.pol)
+
+sub.587$trend_2 <- trend.idx(sub.587$polarity,2,0.1)
+sub.587$trend_3 <- trend.idx(sub.587$polarity,3,0.1)
+sub.587$trend_3
+t_2.scatter.587 <- ggplot(sub.587, aes(x = sub.587$mday, y = sub.587$trend_2))
+t_2.scatter.587 <- t_2.scatter.587 + geom_point() + geom_line()
+t_2.scatter.587 <- t_2.scatter.587 + xlab("Date") + ylab("trend_2") + ggtitle("587")
+t_2.scatter.587
+
+
+t_3.scatter.587 <- ggplot(sub.587, aes(x = sub.587$sixhr_n, y = sub.587$trend_3))
+t_3.scatter.587 <- t_3.scatter.587 + geom_point() + geom_line()
+t_3.scatter.587 <- t_3.scatter.587 + xlab("Period") + ylab("Trend_3") + ggtitle("Neighborhood 587")
+t_3.scatter.587
+
+multiplot(bb.scatter.587, t_3.scatter.587)
