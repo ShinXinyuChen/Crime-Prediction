@@ -189,5 +189,5 @@ t_3.scatter.587 <- t_3.scatter.587 + geom_point() + geom_line()
 t_3.scatter.587 <- t_3.scatter.587 + xlab("Period") + ylab("Trend_3") + ggtitle("Neighborhood 587")
 t_3.scatter.587
 
-# multiplot func.
+# use multiplot function to plot both trend index
 multiplot(bb.scatter.587, t_3.scatter.587)
