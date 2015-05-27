@@ -231,3 +231,93 @@ multiplot <- function(..., plotlist=NULL, file, cols=1, layout=NULL) {
     }
   }
 }
+
+#' Plots a surveillance curve for a threat prediction and set of actual crime locations.
+#' @param threat.prediction Dataframe with columns \code{x}, \code{y}, and \code{threat}, which give the x-y location of a prediction and its real-valued threat prediction.
+#' @param eval.crime.points Dataframe with columns \code{x} and \code{y}, which give the location of actual crimes that occurred during the evaluation period.
+#' @param prediction.resolution.meters Resolution of prediction points in meters.
+#' @param boundary Spatial boundary of evaluation area (shapefile).
+#' @param add Whether or not to add the plot to the current plot.
+plot.surveillance.curve = function(threat.prediction, eval.crime.points, prediction.resolution.meters, boundary, add=FALSE)
+{
+  surv.plot.points = get.surveillance.plot.points(threat.prediction, eval.crime.points, prediction.resolution.meters, boundary)
+  
+  if(add)
+  {
+    lines(surv.plot.points, lty=2, col="blue")
+  }
+  else
+  {
+    plot(surv.plot.points, type="l", xlab="% Area Surveilled", ylab = "% Crime Captured")
+    
+    # show random guess
+    abline(0,1,lty="dashed")
+  }   
+  
+  # add AUC 
+  x = surv.plot.points[,1]
+  y = surv.plot.points[,2]
+  idx = order(x)
+  auc = round(sum(diff(x[idx])*rollmean(y[idx],2)),digits=2)
+  
+  auc.x.location = 0.6
+  auc.y.location = 0.4
+  if(add)
+  {
+    auc.y.location = 0.3
+  }
+  
+  text(auc.x.location, auc.y.location, paste("AUC=",auc,sep=""))
+}
+
+#' Gets the plot points for a surveillance curve for a threat prediction and set of actual crime locations.
+#' @param threat.prediction Dataframe with columns \code{x}, \code{y}, and \code{threat}, which give the x-y location of a prediction and its real-valued threat prediction.
+#' @param eval.crime.points Dataframe with columns \code{x} and \code{y}, which give the location of actual crimes that occurred during the evaluation period.
+#' @param prediction.resolution.meters Resolution of prediction points in meters.
+#' @param boundary Spatial boundary of evaluation area (shapefile).
+#' @return Plot points for surveillance curve.
+get.surveillance.plot.points = function (threat.prediction, eval.crime.points, prediction.resolution.meters, boundary)
+{
+  # filter out prediction points that are outside of the boundary
+  sp.points = SpatialPoints(threat.prediction[,c("x", "y")], proj4string=boundary@proj4string)
+  points.in.boundary = !is.na(over(sp.points, boundary)$OBJECTID)
+  threat.prediction = threat.prediction[points.in.boundary,]
+  
+  # filter out eval points that are outside of the boundary
+  sp.points = SpatialPoints(eval.crime.points[,c("x", "y")], proj4string=boundary@proj4string)
+  points.in.boundary = !is.na(over(sp.points, boundary)$OBJECTID)
+  eval.crime.points = eval.crime.points[points.in.boundary,]
+  
+  # sort prediction rows by threat level
+  threat.prediction = threat.prediction[order(threat.prediction$threat, decreasing=TRUE),]
+  
+  # augment prediction with columns for IDs, prediction squares, and captured crime counts
+  threat.prediction = as.data.frame(cbind(seq(1,nrow(threat.prediction)),
+                                          threat.prediction$threat,
+                                          threat.prediction$x - prediction.resolution.meters / 2,
+                                          threat.prediction$y - prediction.resolution.meters / 2,
+                                          threat.prediction$x + prediction.resolution.meters / 2,
+                                          threat.prediction$y + prediction.resolution.meters / 2,
+                                          rep(0,nrow(threat.prediction))))
+  
+  names(threat.prediction) = c("id", "threat", "llx","lly","urx","ury", "captured.crimes")
+  
+  # get the square for each actual crime point
+  eval.crime.points.squares = apply(eval.crime.points, 1, square.index.of.crime, threat.prediction)
+  
+  # get the number of actual crimes that fell into each square
+  for(square in eval.crime.points.squares)
+  {
+    if(!is.na(square))
+    {
+      threat.prediction$captured.crimes[square] = threat.prediction$captured.crimes[square] + 1
+    }
+  }  
+  
+  threat.prediction$captured.crimes = cumsum(threat.prediction$captured.crimes)
+  
+  plot.x.points = threat.prediction$id / nrow(threat.prediction)
+  plot.y.points = threat.prediction$captured.crimes / nrow(eval.crime.points)
+  
+  return (cbind(plot.x.points, plot.y.points))
+}
