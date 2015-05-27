@@ -5,7 +5,6 @@ library(car)
 library(MASS)
 library(sp)
 source("twitterUtil.r")
-source("crimeUtil.r")
 
 ####################################
 ## Twitter data prerprocessing #####
