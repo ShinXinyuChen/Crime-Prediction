@@ -1,3 +1,10 @@
+library(maptools)
+library(plyr)
+library(ggplot2)
+library(car)
+library(MASS)
+library(sp)
+
 source(CrimePredictionUtil)
 
 #import crime data
@@ -16,7 +23,7 @@ city.boundary = read.shapefile("City_20Boundary/City_Boundary", "poly", "+init=e
 # set prediction resolution
 prediction.resolution.meters = 200
 
-##### train model on responses from feb data, using predictors from jan. #####
+##### train model on responses from Jan 25-31th data, using predictors from Dec 24 - Jan 24. #####
 
 # get negative observations within chicago
 non.crime.points = cbind(0, get.grid.points(city.boundary, prediction.resolution.meters, TRUE))
