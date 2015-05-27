@@ -4,7 +4,7 @@ library(ggplot2)
 library(car)
 library(MASS)
 library(sp)
-source("twitterUtil.r")
+source("CrimePredictionUtil.r")
 
 ####################################
 ## Twitter data prerprocessing #####
