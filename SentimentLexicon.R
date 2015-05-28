@@ -1,34 +1,7 @@
 library(data.table)
 library(qdap)
-library(qdapDictionaries)
 library(tm)
 
-
-############# Data cleanning ############
-# replace emotico to english word
-out.2013Mar.r$text1 <- NA
-out.2013Mar.r$text1 <- mgsub(as.character(emoticon[[2]]), as.character(emoticon[[1]]), out.2013Mar.r$text)
-#emoticon[[1]]
-# clear punctuation 
-out.2013Mar.r$text1<- gsub('[[:punct:]]', ' ', out.2013Mar.r$text1)
-# take control charactor out, need or not? 
-#out.2013Mar13pm.dt$text1<- gsub('[[:cntrl:]]', ' ', out.2013Mar13pm.dt$text1)
-#
-out.2013Mar.r$text1<- gsub('\\d+', ' ', out.2013Mar.r$text1)
-out.2013Mar.r$text1<- tolower(out.2013Mar.r$text1)
-
-twitter.clean <- function(doc){
-  doc$text1 <- NA
-  doc$text1 <- mgsub(as.character(emoticon[[2]]), as.character(emoticon[[1]]), doc$text)
-  #emoticon[[1]]
-  # clear punctuation 
-  out.2013Mar.r$text1<- gsub('[[:punct:]]', ' ', out.2013Mar.r$text1)
-  # take control charactor out, need or not? 
-  #out.2013Mar13pm.dt$text1<- gsub('[[:cntrl:]]', ' ', out.2013Mar13pm.dt$text1)
-  #
-  out.2013Mar.r$text1<- gsub('\\d+', ' ', out.2013Mar.r$text1)
-  out.2013Mar.r$text1<- tolower(out.2013Mar.r$text1)
-}
 ########## positive lexicons ###########
 
 # import positive lexicons from your local directory defined in earlier step
@@ -64,8 +37,6 @@ neg.words<- unique(neg.words)
 
 # Create researcher defined sentiment.frame
 POLKEY<- sentiment_frame(pos.words, neg.words)
-    # something funky happens to the encoding of just one of the rows. easier to blow it away (6909:na\xefve -1)
-    ##??POLKEY<- POLKEY[-5963,]
     # POLKEY$x to lower
     POLKEY$x<- tolower(POLKEY$x)
     setkey(POLKEY,x)  
