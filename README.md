@@ -52,10 +52,11 @@ Jan.train.balanced
 ```
 
 ## Model and Evaluation
-
-
-
-
+**ModelingPrediction.R** shows three ways to build predicting model. `glm` is for logistic regression; `glmnet` with pararmeter `family = binomial` is for the lasso logistic regression and `randomForest` is for randomforest model. Then use `predict` to get the predicted value:
+```
+theft.threat
+```
+Lastly, user `plot.surveillance.curve` function to evaluate the performance of the prediction.
 
 ## Version 
 * Version 1.0
