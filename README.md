@@ -68,4 +68,4 @@ This code was created under Mathew Gerber's guide within Capstone course at UVa 
 #### Shin Xinyu Chen
 * GitHub: https://github.com/ShinXinyuChen
 * e-mail: xc7xn@virginia.edu; xinyu.shin.chen@gmail.com
-* Twitter: [@twitterhandle](https://twitter.com/twitterhandle "twitterhandle on twitter")
+* Twitter: [@chen_xinyu](https://twitter.com/chen_xinyu "chen_xinyu on twitter")
